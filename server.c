@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <pthread.h>
-
+#include <sqlite3.h>
 #define ever ;;
 #define PORT 3001
 
@@ -23,6 +23,7 @@ static void *treat(void *);
 void raspunde(void *);
 
 int main () {
+   
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
     int server_fd; 
@@ -87,12 +88,86 @@ static void *treat(void *args) {
         //close(client_data.client_fd);
         return NULL;
 };
+int check_is_user_exists(char *username) {
+    sqlite3 *db;
+    int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+    char *sql = "SELECT * FROM users WHERE username = ?";
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+    sqlite3_bind_text(stmt, 1, username, strlen(username), SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 1;
+    } else {
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+        return 0;
+    }
+}
+int handle_register(char *username, char *password) {
+    sqlite3 *db;
+    int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+    
 
+    
+    char *sql = "INSERT INTO users (username, password) VALUES (?, ?)";
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        return 0;
+    }
+    sqlite3_bind_text(stmt, 1, username, strlen(username), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, password, strlen(password), SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        return 0;
+    }
+    sqlite3_finalize(stmt);
+   return 1;
+}
+void handle_login(char *username, char *password, int user_id) {
+    sqlite3 *db;
+    int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+    if (rc != SQLITE_OK) {
+         perror("Cannot open database");
+    }
+    char *sql = "SELECT * FROM users WHERE username = ? AND password = ?";
+    sqlite3_stmt *stmt;
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        perror("Cannot prepare statement");
+    }
+    sqlite3_bind_text(stmt, 1, username, strlen(username), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, password, strlen(password), SQLITE_STATIC);
+    rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        user_id = sqlite3_column_int(stmt, 0); // Fetch the user ID from the result
+        printf("User logged in successfully with ID: %d\n", user_id);
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    } else {
+        printf("User or password incorrect\n");
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    }
+   
+}
 
 void raspunde(void *args) {
     // citeste mesajul de la client si ii trimite "Cool Message Bro: {message_received}"
     // comunicarea se intampla altfel numar caracter si dupa mesajul
-
+  
 
     struct thread_data client_data; 
     client_data = *((struct thread_data*)args);
@@ -101,6 +176,10 @@ void raspunde(void *args) {
         // request
         char message[1000];
         int message_len;
+        int user_id=0;
+        char message_response[1000];
+        int message_response_len;
+        message_response[0] = '\0'; 
         if(read(client_data.client_fd, &message_len, sizeof(int)) <= 0) {
             printf("[Thread-%d]\n", client_data.thread_id);
             perror("Eroare la read() de la client.\n");
@@ -115,15 +194,47 @@ void raspunde(void *args) {
         message[message_len] = '\0'; // IMPORTANT
 
         printf("[Thread-%d] Server received message: %s\n", client_data.thread_id, message);
+        if (strcmp(message, "exit") == 0) {
+            printf("[Thread-%d] Exiting.\n", client_data.thread_id);
+            break;
+        }
+        else if (strncmp(message,"register",8) == 0)
+        {
+            char *token = strtok(message, " ");
+            char *username = strtok(NULL, " ");
+            char *password = strtok(NULL, " ");
+            if (username == NULL || password == NULL) {
+                printf("[Thread-%d] Invalid registration command format.\n", client_data.thread_id);
+                // Send an error response to the client and continue the loop
+                continue;
+            }
+            if(check_is_user_exists(username)) {
+                strcpy(message_response, "user already exists");
+                message_response_len = strlen(message_response);
+            } 
+            else 
+            if (handle_register(username, password)) {
+                strcpy(message_response, "user registered");
+                message_response_len = strlen(message_response);
+            } else {
+                strcpy(message_response, "problem with register");
+                message_response_len = strlen(message_response);
+            }
+        }
+        else if (strncmp(message,"login",5) == 0)
+        {
+           
+                strcpy(message_response,"You are already logged in");
+            
+        }
+        
 
+        
+
+        
         // response
-        char message_response[1000];
-        int message_response_len;
-
-        message_response[0] = '\0'; // IMPORTANT
-        strcat(message_response, "Cool Message Bro: ");
-        strcat(message_response, message);
-        message_response_len = strlen(message_response); // IMPORTANT
+     
+       
         printf("[Thread-%d] Server send message: %s\n", client_data.thread_id, message_response);
 
         if(write(client_data.client_fd, &message_response_len, sizeof(int)) <= 0) {
@@ -136,12 +247,12 @@ void raspunde(void *args) {
             perror("Eroare la write() de la client.\n");
             return;
         }
-        
-        message[message_len] = '\0';
+         message[message_len] = '\0';
        
+        }
 
-    }
+    
 
-    printf("[Thread-%d] Server finishing work with the client.\n", client_data.thread_id);
+    printf("[Thread-%d] Server finishing working with the client.\n", client_data.thread_id);
 }
 

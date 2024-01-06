@@ -40,10 +40,10 @@ int main (int argc, char *argv[]) {
 
     printf("[Client] Input message ('exit' to quit): ");
     fflush(stdout);
-
+    char message[1000];
+    int message_len;
     while(1) {
-        char message[1000];
-        int message_len;
+       
 
         scanf(" %[^\n]", message); // Notice the space before %[^\n] to discard leading whitespace
         

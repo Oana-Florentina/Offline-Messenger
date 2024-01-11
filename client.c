@@ -38,7 +38,7 @@ int main (int argc, char *argv[]) {
         return errno;
     }
 
-    printf("[Client] Input message ('exit' to quit): ");
+    printf("[Client] Input message ('exit' to quit, 'help' to see commands available): ");
     fflush(stdout);
     char message[1000];
     int message_len;
@@ -66,6 +66,7 @@ int main (int argc, char *argv[]) {
             printf("[Client] Exiting.\n");
             break;
         }
+        
 
         // Receive and display the server's response
         char message_response[1000];
@@ -83,6 +84,7 @@ int main (int argc, char *argv[]) {
         message_response[message_response_len] = '\0'; // IMPORTANT
 
         printf("[Client] Received message: %s\n", message_response);
+        printf("[Client] Input message ('exit' to quit, 'help' to see commands available): ");
     }
 
     close(server_fd);

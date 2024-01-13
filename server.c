@@ -196,12 +196,41 @@ void raspunde(void *args)
         {
             handle_see_users(message_response, message_response_len, user_id);
         }
-        else if (strncmp(message, "send message to", 20) == 0 && user_id > 0)
+        else if (strncmp(message, "send message to ", 16) == 0 && user_id > 0)
         {
             handle_send_message(message_response, message_response_len, message, user_id);
         }
+        else if (strncmp(message, "see my messages", 15) == 0 && user_id > 0)
+        {
+            handle_see_my_messages(message_response, message_response_len, user_id);
+        }
+        else if (strncmp(message, "see unseen messages", 19) == 0 && user_id > 0)
+        {
+            handle_see_unseen_messages(message_response, &message_response_len, user_id);
+            update_unseen_messages(user_id);
+        }
+        else if (strncmp(message, "logout", 6) == 0 && user_id > 0)
+        {
+            user_id = 0;
+            strcpy(message_response, "user logged out");
+            message_response_len = strlen(message_response);
+        }
+        else if (strncmp(message, "help", 4) == 0)
+        {
+            strcpy(message_response, "register <username> <password>\nlogin <username> <password>\nsee users\nsend message to <username> <message>\nsee my messages\nsee unseen messages\nlogout");
+            message_response_len = strlen(message_response);
+        }
+        else if (strncmp (message, "reply to message id ", 20) == 0 && user_id > 0)
+        {
+            handle_reply_to_id_message(message_response, &message_response_len, message, user_id);
+        }
         
-
+        else if (user_id == 0)
+        {
+            strcpy(message_response, "you are not logged in");
+            message_response_len = strlen(message_response);
+        }
+        
         else
         {
             strcpy(message_response, "invalid command");

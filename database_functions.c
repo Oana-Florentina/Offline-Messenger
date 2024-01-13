@@ -131,8 +131,8 @@ void handle_see_users(char message_response[1000], int message_response_len, int
 void handle_send_message(char message_response[1000], int message_response_len, char message[100], int user_id)
 {
     char *token = strtok(message, " ");
-    token = strtok(NULL, " ");
-    token = strtok(NULL, " ");
+    *token = strtok(NULL, " ");
+    *token = strtok(NULL, " ");
     char *username = strtok(NULL, " ");
     printf("Username before query: '%s'\n", username);
 
@@ -281,7 +281,8 @@ void handle_see_unseen_messages(char message_response[1000], int *message_respon
     sqlite3_close(db);
 }
 
-void update_unseen_messages(int user_id){
+void update_unseen_messages(int user_id)
+{
     sqlite3 *db;
     int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
     if (rc != SQLITE_OK)
@@ -311,4 +312,168 @@ void update_unseen_messages(int user_id){
 
     sqlite3_finalize(update_stmt);
     sqlite3_close(db);
+}
+void handle_see_my_messages(char message_response[1000], int message_response_len, int user_id)
+{
+    sqlite3 *db;
+    int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+    if (rc != SQLITE_OK)
+    {
+        perror("Cannot open database");
+        return; // Exit or handle the error appropriately
+    }
+
+    // Query to get the messages
+    char *select_sql = "SELECT Messages.id, users.username, Messages.message FROM Messages INNER JOIN users ON Messages.sender = users.id WHERE receiver = ?";
+
+    sqlite3_stmt *select_stmt;
+    rc = sqlite3_prepare_v2(db, select_sql, -1, &select_stmt, NULL);
+    if (rc != SQLITE_OK)
+    {
+        perror("Cannot prepare SELECT statement");
+        sqlite3_close(db);
+        return; // Exit or handle the error appropriately
+    }
+    sqlite3_bind_int(select_stmt, 1, user_id);
+
+    int message_count = 0;
+    strcat(message_response, "\n");
+    // Fetch messages
+    while (sqlite3_step(select_stmt) == SQLITE_ROW)
+    {
+        int message_id = sqlite3_column_int(select_stmt, 0);
+        char *sender_username = sqlite3_column_text(select_stmt, 1);
+        char *message_text = sqlite3_column_text(select_stmt, 2);
+
+        if (message_count == 0)
+        {
+            sprintf(message_response, "<%d> %s: %s", message_id, sender_username, message_text);
+        }
+        else
+        {
+            strcat(message_response, "\n");
+            sprintf(message_response + strlen(message_response), "<%d> %s: %s", message_id, sender_username, message_text);
+        }
+
+        message_count++;
+    }
+
+    if (message_count > 0)
+    {
+        message_response_len = strlen(message_response);
+    }
+    else
+    {
+        strcpy(message_response, "no messages");
+        message_response_len = strlen(message_response);
+    }
+
+    sqlite3_finalize(select_stmt);
+    sqlite3_close(db);
+}
+void handle_reply_to_id_message(char message_response[1000], int *message_response_len, char message[100], int user_id)
+{
+    char *token = strtok(message, " ");
+    *token = strtok(NULL, " ");
+    *token = strtok(NULL, " ");
+    *token = strtok(NULL, " ");
+    char *message_id_str = strtok(NULL, " ");
+    printf("message_id_strr:", message_id_str);
+    char *message_to_send = strtok(NULL, ""); // Changed to include the entire message
+    printf("message_id_strr:", message_to_send);
+    if (message_id_str == NULL || message_to_send == NULL)
+    {
+        strcpy(message_response, "invalid reply to message id command format");
+        printf("message_id_str: \n", message_id_str);
+        *message_response_len = strlen(message_response);
+    }
+    else
+    {
+        int message_id = strtol(message_id_str, NULL, 10); // Convert message_id_str to integer
+        sqlite3 *db;
+        printf("message_id: %d\n", message_id);
+        int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot open database");
+            return; // Exit or handle the error appropriately
+        }
+
+        // Query to get the sender and original message
+        char *select_sql = "SELECT sender, message FROM Messages WHERE id = ? AND receiver = ?";
+
+        sqlite3_stmt *select_stmt;
+        rc = sqlite3_prepare_v2(db, select_sql, -1, &select_stmt, NULL);
+
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot prepare SELECT statement");
+            sqlite3_close(db);
+            return; // Exit or handle the error appropriately
+        }
+
+        sqlite3_bind_int(select_stmt, 1, message_id);
+        sqlite3_bind_int(select_stmt, 2, user_id);
+
+        rc = sqlite3_step(select_stmt);
+        if (rc == SQLITE_ROW)
+        {
+            int original_sender_id = sqlite3_column_int(select_stmt, 0);
+            char *original_message = sqlite3_column_text(select_stmt, 1);
+
+            // Reset the statement for the second query
+            rc = sqlite3_reset(select_stmt);
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot reset SELECT statement");
+                sqlite3_finalize(select_stmt);
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+
+            // Query to insert the reply message
+            char *insert_sql = "INSERT INTO Messages (SENDER, RECEIVER, MESSAGE, SEEN, REPLY) VALUES (?, ?, ?, 0, ?)";
+            sqlite3_stmt *insert_stmt;
+            rc = sqlite3_prepare_v2(db, insert_sql, -1, &insert_stmt, NULL);
+
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot prepare INSERT statement");
+                sqlite3_finalize(select_stmt);
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+
+            // Construct the reply message
+            sqlite3_bind_int(insert_stmt, 4, message_id);
+            sqlite3_bind_text(insert_stmt, 3, message_to_send, strlen(message_to_send), SQLITE_STATIC);
+            sqlite3_bind_int(insert_stmt, 2, original_sender_id); // Receiver is the original sender
+            sqlite3_bind_int(insert_stmt, 1, user_id);            // Sender is the current user
+
+            rc = sqlite3_step(insert_stmt);
+            if (rc != SQLITE_DONE)
+            {
+                perror("Cannot execute INSERT statement");
+            }
+            else
+            {
+                strcpy(message_response, "message sent");
+                *message_response_len = strlen(message_response);
+            }
+
+            // Finalize the statements
+            sqlite3_finalize(select_stmt);
+            sqlite3_finalize(insert_stmt);
+        }
+        else
+        {
+            perror("Cannot execute SELECT statement");
+            printf("message_id: %d\n", message_id);
+            strcpy(message_response, "message does not exist");
+            *message_response_len = strlen(message_response);
+        }
+
+        sqlite3_close(db);
+    }
 }

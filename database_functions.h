@@ -18,5 +18,5 @@ void handle_see_users(char message_response[1000], int message_response_len, int
 void handle_send_message(char message_response[1000], int message_response_len, char message[100], int user_id);
 void handle_see_unseen_messages(char message_response[1000], int *message_response_len, int user_id);
 void update_unseen_messages(int user_id);
-
-
+void handle_see_my_messages(char message_response[1000], int message_response_len, int user_id);    
+void handle_reply_to_id_message(char message_response[1000], int *message_response_len, char message[100], int user_id);

@@ -181,7 +181,7 @@ void raspunde(void *args)
                 {
                     strcpy(message_response, "user logged in");
                     message_response_len = strlen(message_response);
-                    handle_see_unseen_messages(&message_response, &message_response_len, user_id);
+                    handle_see_unseen_messages(message_response, &message_response_len, user_id);
                     update_unseen_messages(user_id);       
                 }
                 else
@@ -217,12 +217,20 @@ void raspunde(void *args)
         }
         else if (strncmp(message, "help", 4) == 0)
         {
-            strcpy(message_response, "register <username> <password>\nlogin <username> <password>\nsee users\nsend message to <username> <message>\nsee my messages\nsee unseen messages\nlogout");
+            strcpy(message_response, "register <username> <password>\nlogin <username> <password>\nsee users\nsend message to <username> <message>\nsee my messages\nsee unseen messages\nlogout\nexit, help, reply to message id <message id>, see chat with <username>, delete chat with <username>");
             message_response_len = strlen(message_response);
         }
         else if (strncmp (message, "reply to message id ", 20) == 0 && user_id > 0)
         {
             handle_reply_to_id_message(message_response, &message_response_len, message, user_id);
+        }
+        else if (strncmp( message, "see chat with ", 14) == 0 && user_id > 0)
+        {
+            handle_see_chat_with(message_response, &message_response_len, message, user_id);
+        }
+       else if (strncmp(message, "delete chat with ", 17)==0 && user_id > 0)
+        {
+            handle_delete_chat_with(message_response, &message_response_len, message, user_id);
         }
         
         else if (user_id == 0)

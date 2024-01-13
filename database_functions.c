@@ -1,5 +1,6 @@
 #include <sqlite3.h>
 #include "database_functions.h"
+
 int check_is_user_exists(char *username)
 {
     sqlite3 *db;
@@ -30,6 +31,7 @@ int check_is_user_exists(char *username)
         return 0;
     }
 }
+
 int handle_register(char *username, char *password)
 {
     sqlite3 *db;
@@ -56,6 +58,7 @@ int handle_register(char *username, char *password)
     sqlite3_finalize(stmt);
     return 1;
 }
+
 int handle_login(char *username, char *password)
 {
     int user_id = -1;
@@ -84,6 +87,7 @@ int handle_login(char *username, char *password)
 
     return user_id;
 }
+
 void handle_see_users(char message_response[1000], int message_response_len, int user_id)
 {
     sqlite3 *db;
@@ -106,7 +110,7 @@ void handle_see_users(char message_response[1000], int message_response_len, int
         strcpy(message_response, "users: ");
 
         // Fetch the first username
-        char *username = sqlite3_column_text(stmt, 0);
+        const char *username = sqlite3_column_text(stmt, 0);
         strcat(message_response, username);
 
         // Fetch subsequent usernames
@@ -128,11 +132,12 @@ void handle_see_users(char message_response[1000], int message_response_len, int
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 }
+
 void handle_send_message(char message_response[1000], int message_response_len, char message[100], int user_id)
 {
     char *token = strtok(message, " ");
-    *token = strtok(NULL, " ");
-    *token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
     char *username = strtok(NULL, " ");
     printf("Username before query: '%s'\n", username);
 
@@ -222,6 +227,7 @@ void handle_send_message(char message_response[1000], int message_response_len, 
         sqlite3_close(db);
     }
 }
+
 void handle_see_unseen_messages(char message_response[1000], int *message_response_len, int user_id)
 {
     sqlite3 *db;
@@ -251,8 +257,8 @@ void handle_see_unseen_messages(char message_response[1000], int *message_respon
     while (sqlite3_step(select_stmt) == SQLITE_ROW)
     {
         int message_id = sqlite3_column_int(select_stmt, 0);
-        char *sender_username = sqlite3_column_text(select_stmt, 1);
-        char *message_text = sqlite3_column_text(select_stmt, 2);
+        const char *sender_username = sqlite3_column_text(select_stmt, 1);
+        const char *message_text = sqlite3_column_text(select_stmt, 2);
 
         if (message_count == 0)
         {
@@ -313,6 +319,7 @@ void update_unseen_messages(int user_id)
     sqlite3_finalize(update_stmt);
     sqlite3_close(db);
 }
+
 void handle_see_my_messages(char message_response[1000], int message_response_len, int user_id)
 {
     sqlite3 *db;
@@ -342,8 +349,8 @@ void handle_see_my_messages(char message_response[1000], int message_response_le
     while (sqlite3_step(select_stmt) == SQLITE_ROW)
     {
         int message_id = sqlite3_column_int(select_stmt, 0);
-        char *sender_username = sqlite3_column_text(select_stmt, 1);
-        char *message_text = sqlite3_column_text(select_stmt, 2);
+        const char *sender_username = sqlite3_column_text(select_stmt, 1);
+        const char *message_text = sqlite3_column_text(select_stmt, 2);
 
         if (message_count == 0)
         {
@@ -371,20 +378,21 @@ void handle_see_my_messages(char message_response[1000], int message_response_le
     sqlite3_finalize(select_stmt);
     sqlite3_close(db);
 }
+
 void handle_reply_to_id_message(char message_response[1000], int *message_response_len, char message[100], int user_id)
 {
     char *token = strtok(message, " ");
-    *token = strtok(NULL, " ");
-    *token = strtok(NULL, " ");
-    *token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
     char *message_id_str = strtok(NULL, " ");
-    printf("message_id_strr:", message_id_str);
+    //printf("message_id_strr:", message_id_str);
     char *message_to_send = strtok(NULL, ""); // Changed to include the entire message
-    printf("message_id_strr:", message_to_send);
+   // printf("message_id_strr:", message_to_send);
     if (message_id_str == NULL || message_to_send == NULL)
     {
         strcpy(message_response, "invalid reply to message id command format");
-        printf("message_id_str: \n", message_id_str);
+    //    printf("message_id_str: \n", message_id_str);
         *message_response_len = strlen(message_response);
     }
     else
@@ -420,7 +428,7 @@ void handle_reply_to_id_message(char message_response[1000], int *message_respon
         if (rc == SQLITE_ROW)
         {
             int original_sender_id = sqlite3_column_int(select_stmt, 0);
-            char *original_message = sqlite3_column_text(select_stmt, 1);
+            const char *original_message = sqlite3_column_text(select_stmt, 1);
 
             // Reset the statement for the second query
             rc = sqlite3_reset(select_stmt);
@@ -471,6 +479,207 @@ void handle_reply_to_id_message(char message_response[1000], int *message_respon
             perror("Cannot execute SELECT statement");
             printf("message_id: %d\n", message_id);
             strcpy(message_response, "message does not exist");
+            *message_response_len = strlen(message_response);
+        }
+
+        sqlite3_close(db);
+    }
+}
+
+void handle_see_chat_with(char message_response[1000], int *message_response_len, char message[100], int user_id)
+{
+    char *token = strtok(message, " ");
+    token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
+    char *username = strtok(NULL, " ");
+    if (username == NULL)
+    {
+        strcpy(message_response, "invalid see chat with command format");
+        *message_response_len = strlen(message_response);
+    }
+    else
+    {
+        sqlite3 *db;
+        int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot open database");
+            return; // Exit or handle the error appropriately
+        }
+
+        // Query to get user_id_to_send based on username
+        char *select_sql = "SELECT id FROM users WHERE username = ? COLLATE NOCASE";
+
+        sqlite3_stmt *select_stmt;
+        rc = sqlite3_prepare_v2(db, select_sql, -1, &select_stmt, NULL);
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot prepare SELECT statement");
+            sqlite3_close(db);
+            return; // Exit or handle the error appropriately
+        }
+        sqlite3_bind_text(select_stmt, 1, username, strlen(username), SQLITE_STATIC);
+
+        rc = sqlite3_step(select_stmt);
+        if (rc == SQLITE_ROW)
+        {
+            int user_id_to_send = sqlite3_column_int(select_stmt, 0);
+            printf("user_id_to_send: %d\n", user_id_to_send);
+
+            // Reset the statement for the second query
+            rc = sqlite3_reset(select_stmt);
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot reset SELECT statement");
+                sqlite3_finalize(select_stmt);
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+
+            // Query to get the messages
+            char *select_sql = "SELECT Messages.id, users.username, Messages.message FROM Messages INNER JOIN users ON Messages.sender = users.id WHERE (receiver = ? AND sender = ?) OR (receiver = ? AND sender = ?)";
+
+            sqlite3_stmt *select_stmt;
+            rc = sqlite3_prepare_v2(db, select_sql, -1, &select_stmt, NULL);
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot prepare SELECT statement");
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+            sqlite3_bind_int(select_stmt, 1, user_id);
+            sqlite3_bind_int(select_stmt, 2, user_id_to_send);
+            sqlite3_bind_int(select_stmt, 3, user_id_to_send);
+            sqlite3_bind_int(select_stmt, 4, user_id);
+
+            int message_count = 0;
+
+            // Fetch messages
+            while (sqlite3_step(select_stmt) == SQLITE_ROW)
+            {
+                int message_id = sqlite3_column_int(select_stmt, 0);
+                const char *sender_username = sqlite3_column_text(select_stmt, 1);
+                const char *message_text = sqlite3_column_text(select_stmt, 2);
+
+                if (message_count == 0)
+                {
+                    sprintf(message_response, "<%d> %s: %s", message_id, sender_username, message_text);
+                }
+                else
+                {
+                    strcat(message_response, "\n");
+                    sprintf(message_response + strlen(message_response), "<%d> %s: %s", message_id, sender_username, message_text);
+                }
+
+                message_count++;
+            }
+
+            if (message_count > 0)
+            {
+                *message_response_len = strlen(message_response);
+            }
+            else
+            {
+                strcpy(message_response, "no messages");
+                *message_response_len = strlen(message_response);
+            }
+
+            sqlite3_finalize(select_stmt);
+        }
+        else
+        {
+            perror("Cannot execute SELECT statement");
+            strcpy(message_response, "user does not exist");
+            *message_response_len = strlen(message_response);
+        }
+
+        sqlite3_close(db);
+    }
+}
+
+void handle_delete_chat_with(char message_response[1000], int *message_response_len, char message[100], int user_id)
+{
+    char *token = strtok(message, " ");
+    token = strtok(NULL, " ");
+    token = strtok(NULL, " ");
+    char *username = strtok(NULL, " ");
+    if (username == NULL)
+    {
+        strcpy(message_response, "invalid delete chat with command format");
+        *message_response_len = strlen(message_response);
+    }
+    else
+    {
+        sqlite3 *db;
+        int rc = sqlite3_open("/home/florentina/Downloads/server-client-tcp (1)/c-server-client-tcp/DataBase.db", &db);
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot open database");
+            return; // Exit or handle the error appropriately
+        }
+
+        // Query to get user_id_to_send based on username
+        char *select_sql = "SELECT id FROM users WHERE username = ? COLLATE NOCASE";
+
+        sqlite3_stmt *select_stmt;
+        rc = sqlite3_prepare_v2(db, select_sql, -1, &select_stmt, NULL);
+        if (rc != SQLITE_OK)
+        {
+            perror("Cannot prepare SELECT statement");
+            sqlite3_close(db);
+            return; // Exit or handle the error appropriately
+        }
+        sqlite3_bind_text(select_stmt, 1, username, strlen(username), SQLITE_STATIC);
+
+        rc = sqlite3_step(select_stmt);
+        if (rc == SQLITE_ROW)
+        {
+            int user_id_to_send = sqlite3_column_int(select_stmt, 0);
+            printf("user_id_to_send: %d\n", user_id_to_send);
+
+            // Reset the statement for the second query
+            rc = sqlite3_reset(select_stmt);
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot reset SELECT statement");
+                sqlite3_finalize(select_stmt);
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+
+            // Query to delete the messages
+            char *delete_sql = "DELETE FROM Messages WHERE (receiver = ? AND sender = ?) OR (receiver = ? AND sender = ?)";
+
+            sqlite3_stmt *delete_stmt;
+            rc = sqlite3_prepare_v2(db, delete_sql, -1, &delete_stmt, NULL);
+            if (rc != SQLITE_OK)
+            {
+                perror("Cannot prepare DELETE statement");
+                sqlite3_close(db);
+                return; // Exit or handle the error appropriately
+            }
+            sqlite3_bind_int(delete_stmt, 1, user_id);
+            sqlite3_bind_int(delete_stmt, 2, user_id_to_send);
+            sqlite3_bind_int(delete_stmt, 3, user_id_to_send);
+            sqlite3_bind_int(delete_stmt, 4, user_id);
+
+            rc = sqlite3_step(delete_stmt);
+            if (rc != SQLITE_DONE)
+            {
+                perror("Cannot execute DELETE statement");
+            }
+            else
+            {
+                strcpy(message_response, "chat deleted");
+                *message_response_len = strlen(message_response);
+            }
+
+            sqlite3_finalize(delete_stmt);
+        }
+        else
+        {
+            perror("Cannot execute SELECT statement");
+            strcpy(message_response, "user does not exist");
             *message_response_len = strlen(message_response);
         }
 
